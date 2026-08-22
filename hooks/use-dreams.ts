@@ -86,12 +86,30 @@ export function useDreamsForDate(date: string) {
     [date, refresh],
   );
 
+  const reorder = useCallback(
+  async (orderedIds: string[]) => {
+    try {
+      await api.put(
+        `/api/users/${USER_ID}/days/${date}/dreams/order`,
+        { orderedIds },
+      );
+
+      await refresh();
+    } catch (error) {
+      console.error('Failed to reorder dreams', error);
+      throw error;
+    }
+  },
+  [date, refresh],
+);
+
   return {
     dreams,
     loading,
     refresh,
     save,
     remove,
+    reorder,
   };
 }
 
