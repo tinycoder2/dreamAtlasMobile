@@ -103,6 +103,7 @@ export function useDreamsForDate(date: string) {
   [date, refresh],
 );
 
+
   return {
     dreams,
     loading,
@@ -114,5 +115,38 @@ export function useDreamsForDate(date: string) {
 }
 
 export function useRecentTags() {
-  return [];
+  const [tags, setTags] = useState<string[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      async function loadTags() {
+        try {
+          const result = await api.get<string[]>(
+            `/api/users/${USER_ID}/dreams/tags/recent`,
+          );
+
+          if (!cancelled) {
+            setTags(result);
+          }
+        } catch (error) {
+          console.error('Failed to load recent tags', error);
+
+          if (!cancelled) {
+            setTags([]);
+          }
+        }
+      }
+
+      loadTags();
+
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
+
+  return tags;
 }
+
