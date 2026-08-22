@@ -1,46 +1,85 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { DreamPreviewCard } from '@/components/dream-preview-card';
 import { Starfield } from '@/components/starfield';
 import { ThemedText } from '@/components/themed-text';
-import { Colors, Radius } from '@/constants/theme';
-import { MOODS } from '@/constants/moods';
 import { DREAM_TYPES } from '@/constants/dream-types';
-import { deleteDream, getRecentTags, searchDreams } from '@/services/db';
+import { MOODS } from '@/constants/moods';
+import { Colors, Radius } from '@/constants/theme';
+import { useRecentTags } from '@/hooks/use-dreams';
+import { api, USER_ID } from '@/services/api';
 import type { Dream, DreamType, Mood } from '@/types/dream';
 
+
 export default function ListScreen() {
-  const db = useSQLiteContext();
+
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [mood, setMood] = useState<Mood | null>(null);
   const [dreamType, setDreamType] = useState<DreamType | null>(null);
   const [tag, setTag] = useState<string | null>(null);
   const [dreams, setDreams] = useState<Dream[]>([]);
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const availableTags = useRecentTags();
 
-  const refresh = useCallback(async () => {
-    setDreams(
-      await searchDreams(db, { text: query || undefined, mood, dreamType, tag: tag ?? undefined })
+const refresh = useCallback(async () => {
+  setLoading(true);
+
+  try {
+    const params = new URLSearchParams();
+
+    if (query.trim()) {
+      params.set('text', query.trim());
+    }
+
+    if (mood) {
+      params.set('mood', mood);
+    }
+
+    if (dreamType) {
+      params.set('dreamType', dreamType);
+    }
+
+    if (tag) {
+      params.set('tag', tag);
+    }
+
+    const queryString = params.toString();
+
+    const results = await api.get<Dream[]>(
+      `/api/users/${USER_ID}/dreams/search${
+        queryString ? `?${queryString}` : ''
+      }`,
     );
-  }, [db, query, mood, dreamType, tag]);
 
-  useEffect(() => {
-    getRecentTags(db, 20).then(setAvailableTags);
-  }, [db]);
-
-  useEffect(() => {
-    const timeout = setTimeout(refresh, 250);
-    return () => clearTimeout(timeout);
-  }, [refresh]);
-
-  async function onDelete(id: number) {
-    await deleteDream(db, id);
-    refresh();
+    setDreams(results);
+  } catch (error) {
+    console.error('Failed to search dreams', error);
+    setDreams([]);
+  } finally {
+    setLoading(false);
   }
+}, [query, mood, dreamType, tag]);
+
+useEffect(() => {
+  const timeout = setTimeout(refresh, 250);
+
+  return () => clearTimeout(timeout);
+}, [refresh]);
+
+async function onDelete(id: string, date: string) {
+  try {
+    await api.delete(
+      `/api/users/${USER_ID}/days/${date}/dreams/${id}`,
+    );
+
+    await refresh();
+  } catch (error) {
+    console.error('Failed to delete dream', error);
+  }
+}
 
   return (
     <View style={styles.root}>
@@ -105,7 +144,7 @@ export default function ListScreen() {
               dream={item}
               showDate
               onPress={() => router.push(`/dream/entry/${item.id}?date=${item.date}`)}
-              onDelete={() => onDelete(item.id)}
+              onDelete={() => onDelete(item.id, item.date)}
             />
           )}
         />

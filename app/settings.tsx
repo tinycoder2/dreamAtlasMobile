@@ -1,5 +1,5 @@
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Feather } from '@expo/vector-icons';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
@@ -69,7 +69,7 @@ export default function SettingsScreen() {
   async function onExport() {
     setExporting(true);
     try {
-      await exportDreamsAsJson(db);
+      await exportDreamsAsJson();
     } finally {
       setExporting(false);
     }

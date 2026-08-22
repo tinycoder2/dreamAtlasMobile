@@ -1,98 +1,152 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 
-import {
-  createDream,
-  deleteDream,
-  getDreamDates,
-  getDreamsByDate,
-  getRecentTags,
-  reorderDreams,
-  updateDream,
-} from '@/services/db';
+import { api, USER_ID } from '@/services/api';
 import type { Dream, DreamDraft } from '@/types/dream';
 
 export function useDreamDates() {
-  const db = useSQLiteContext();
   const [dates, setDates] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
-    setDates(await getDreamDates(db));
-  }, [db]);
+    try {
+      const result = await api.get<{
+        date: string;
+      }[]>(`/api/users/${USER_ID}/days`);
+
+      setDates(result.map((day) => day.date));
+    } catch (error) {
+      console.error('Failed to load dream dates', error);
+      setDates([]);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       refresh();
-    }, [refresh])
+    }, [refresh]),
   );
 
   return { dates, refresh };
 }
 
 export function useDreamsForDate(date: string) {
-  const db = useSQLiteContext();
   const [dreams, setDreams] = useState<Dream[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setDreams(await getDreamsByDate(db, date));
-    setLoading(false);
-  }, [db, date]);
+
+    try {
+      const result = await api.get<Dream[]>(
+        `/api/users/${USER_ID}/days/${date}/dreams`,
+      );
+
+      setDreams(result);
+    } catch (error) {
+      console.error('Failed to load dreams', error);
+      setDreams([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [date]);
 
   useFocusEffect(
     useCallback(() => {
       refresh();
-    }, [refresh])
+    }, [refresh]),
   );
 
   const save = useCallback(
-    async (id: number | null, draft: DreamDraft) => {
+    async (id: string | null, draft: DreamDraft) => {
       if (id == null) {
-        await createDream(db, draft);
+        await api.post<Dream>(
+          `/api/users/${USER_ID}/days/${date}/dreams`,
+          draft,
+        );
       } else {
-        await updateDream(db, id, draft);
+        await api.put<Dream>(
+          `/api/users/${USER_ID}/days/${date}/dreams/${id}`,
+          draft,
+        );
       }
+
       await refresh();
     },
-    [db, refresh]
+    [date, refresh],
   );
 
   const remove = useCallback(
-    async (id: number) => {
-      await deleteDream(db, id);
+    async (id: string) => {
+      await api.delete(
+        `/api/users/${USER_ID}/days/${date}/dreams/${id}`,
+      );
+
       await refresh();
     },
-    [db, refresh]
+    [date, refresh],
   );
 
   const reorder = useCallback(
-    async (orderedIds: number[]) => {
-      // Optimistic: reflect the new order immediately, then persist.
-      setDreams((prev) =>
-        orderedIds
-          .map((id) => prev.find((d) => d.id === id))
-          .filter((d): d is Dream => d != null)
+  async (orderedIds: string[]) => {
+    try {
+      await api.put(
+        `/api/users/${USER_ID}/days/${date}/dreams/order`,
+        { orderedIds },
       );
-      await reorderDreams(db, orderedIds);
-      await refresh();
-    },
-    [db, refresh]
-  );
 
-  return { dreams, loading, refresh, save, remove, reorder };
+      await refresh();
+    } catch (error) {
+      console.error('Failed to reorder dreams', error);
+      throw error;
+    }
+  },
+  [date, refresh],
+);
+
+
+  return {
+    dreams,
+    loading,
+    refresh,
+    save,
+    remove,
+    reorder,
+  };
 }
 
 export function useRecentTags() {
-  const db = useSQLiteContext();
   const [tags, setTags] = useState<string[]>([]);
 
   useFocusEffect(
     useCallback(() => {
-      getRecentTags(db).then(setTags);
-    }, [db])
+      let cancelled = false;
+
+      async function loadTags() {
+        try {
+          const result = await api.get<string[]>(
+            `/api/users/${USER_ID}/dreams/tags/recent`,
+          );
+
+          if (!cancelled) {
+            setTags(result);
+          }
+        } catch (error) {
+          console.error('Failed to load recent tags', error);
+
+          if (!cancelled) {
+            setTags([]);
+          }
+        }
+      }
+
+      loadTags();
+
+      return () => {
+        cancelled = true;
+      };
+    }, []),
   );
 
   return tags;
 }
+

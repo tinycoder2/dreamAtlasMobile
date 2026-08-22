@@ -15,9 +15,9 @@ import { Starfield } from '@/components/starfield';
 import { TagInput } from '@/components/tag-input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors, Radius } from '@/constants/theme';
-import { MOODS, MOOD_COLORS } from '@/constants/moods';
 import { DREAM_TYPES, DREAM_TYPE_COLORS } from '@/constants/dream-types';
+import { MOODS, MOOD_COLORS } from '@/constants/moods';
+import { Colors, Radius } from '@/constants/theme';
 import { useDreamsForDate, useRecentTags } from '@/hooks/use-dreams';
 import type { DreamType, Mood } from '@/types/dream';
 import { confirmDestructive } from '@/utils/confirm';
@@ -28,7 +28,7 @@ export default function DreamEntryScreen() {
   const recentTags = useRecentTags();
 
   const isNew = id === 'new';
-  const dream = isNew ? null : dreams.find((d) => String(d.id) === id) ?? null;
+  const dream = isNew ? null  : dreams.find((d) => d.id === id) ?? null;
 
   const [mode, setMode] = useState<'view' | 'edit'>(isNew ? 'edit' : 'view');
   const [text, setText] = useState('');
@@ -46,7 +46,7 @@ export default function DreamEntryScreen() {
   }, [dream]);
 
   async function onSave() {
-    await save(isNew ? null : Number(id), {
+    await save(isNew ? null :id, {
       date,
       text,
       mood,

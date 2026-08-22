@@ -2,7 +2,7 @@ export type Mood = 'great' | 'good' | 'neutral' | 'bad' | 'nightmare';
 export type DreamType = 'normal' | 'lucid' | 'nightmare' | 'recurring' | 'vivid';
 
 export interface Dream {
-  id: number;
+  id: string;
   date: string; // 'YYYY-MM-DD' — multiple dreams may share a date
   text: string;
   mood: Mood | null;
