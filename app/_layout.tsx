@@ -1,6 +1,7 @@
+import { AuthProvider } from '@/context/AuthContext';
 import { DefaultTheme, ThemeProvider, type Theme } from '@react-navigation/native';
-import { Stack } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import { Stack } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -8,6 +9,10 @@ import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
 import { migrateDbIfNeeded } from '@/services/db';
+
+import { useAuth } from '@/context/AuthContext';
+import { Redirect, useSegments } from 'expo-router';
+
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -36,23 +41,48 @@ const dreamTheme: Theme = {
   },
 };
 
+function AuthGate() {
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+
+  if (loading) {
+    return null;
+  }
+
+  const inLogin = segments[0] === 'login';
+
+  if (!user && !inLogin) {
+    return <Redirect href="/login" />;
+  }
+
+  if (user && inLogin) {
+    return <Redirect href="/" />;
+  }
+
+  return null;
+}
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SQLiteProvider databaseName="dreams.db" onInit={migrateDbIfNeeded}>
-        <ThemeProvider value={dreamTheme}>
-          <Stack screenOptions={{ contentStyle: { backgroundColor: Colors.background } }}>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="dream/[date]" options={{ title: 'Dreams' }} />
-            <Stack.Screen
-              name="dream/entry/[id]"
-              options={{ presentation: 'modal', title: 'Dream entry' }}
-            />
-            <Stack.Screen name="list" options={{ title: 'All Dreams' }} />
-            <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-          </Stack>
-          <StatusBar style="light" />
-        </ThemeProvider>
+        <AuthProvider>
+          <AuthGate />
+          <ThemeProvider value={dreamTheme}>
+            <Stack screenOptions={{ contentStyle: { backgroundColor: Colors.background } }}>
+              <Stack.Screen name="login" options={{ headerShown: false }} />
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="dream/[date]" options={{ title: 'Dreams' }} />
+              <Stack.Screen
+                name="dream/entry/[id]"
+                options={{ presentation: 'modal', title: 'Dream entry' }}
+              />
+              <Stack.Screen name="list" options={{ title: 'All Dreams' }} />
+              <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+            </Stack>
+            <StatusBar style="light" />
+          </ThemeProvider>
+        </AuthProvider>
       </SQLiteProvider>
     </GestureHandlerRootView>
   );
