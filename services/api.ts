@@ -1,6 +1,6 @@
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+import { auth } from '@/lib/firebase';
 
-export const USER_ID = 'user123';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 if (!API_BASE_URL) {
   throw new Error('EXPO_PUBLIC_API_URL is not configured');
@@ -10,12 +10,22 @@ async function request<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
+
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error('User is not signed in');
+  }
+
+  const idToken = await user.getIdToken();
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(options?.headers ?? {}),
+      Authorization: `Bearer ${idToken}`,
     },
-    ...options,
   });
 
   if (!response.ok) {
