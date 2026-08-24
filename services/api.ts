@@ -19,10 +19,10 @@ async function request<T>(
 
   const idToken = await user.getIdToken();
 
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
       ...(options?.headers ?? {}),
       Authorization: `Bearer ${idToken}`,
     },
@@ -51,6 +51,9 @@ export const api = {
   post<T>(path: string, body: unknown) {
     return request<T>(path, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(body),
     });
   },
@@ -58,6 +61,9 @@ export const api = {
   put<T>(path: string, body: unknown) {
     return request<T>(path, {
       method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(body),
     });
   },
@@ -65,6 +71,12 @@ export const api = {
   delete<T = void>(path: string) {
     return request<T>(path, {
       method: 'DELETE',
+    });
+  },
+  postMultipart<T>(path: string, formData: FormData) {
+    return request<T>(path, {
+      method: 'POST',
+      body: formData,
     });
   },
 };
