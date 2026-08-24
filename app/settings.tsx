@@ -1,8 +1,9 @@
+import { useAuth } from '@/context/AuthContext';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { Starfield } from '@/components/starfield';
 import { ThemedText } from '@/components/themed-text';
@@ -30,6 +31,7 @@ export default function SettingsScreen() {
   const [hour, setHour] = useState(DEFAULT_REMINDER_HOUR);
   const [minute, setMinute] = useState(DEFAULT_REMINDER_MINUTE);
   const [exporting, setExporting] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     getScheduledReminder().then((reminder) => {
@@ -81,6 +83,25 @@ export default function SettingsScreen() {
   return (
     <View style={styles.root}>
       <Starfield />
+
+      <View style={styles.row}>
+        {user?.photoURL && (
+          <Image
+            source={{ uri: user.photoURL }}
+            style={styles.profileImage}
+          />
+        )}
+
+        <View style={styles.rowText}>
+          <ThemedText type="defaultSemiBold">
+            {user?.displayName ?? 'Dreamer'}
+          </ThemedText>
+
+          <ThemedText color="textMuted">
+            {user?.email ?? 'No email available'}
+          </ThemedText>
+        </View>
+      </View>
 
       <View style={styles.row}>
         <View style={styles.rowText}>
@@ -143,6 +164,11 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 13,
+  },
+  profileImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   exportRow: {
     flexDirection: 'row',

@@ -1,10 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import {
-  GoogleAuthProvider,
-  signInWithCredential,
-} from 'firebase/auth';
+
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -12,34 +9,39 @@ import { Starfield } from '@/components/starfield';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Radius } from '@/constants/theme';
-import { auth } from '@/lib/firebase';
-
-WebBrowser.maybeCompleteAuthSession();
-
-
+import { useAuth } from '@/context/AuthContext';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
+  const { signInWithGoogle } = useAuth();
+
   const [request, response, promptAsync] = Google.useAuthRequest({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-  selectAccount: true,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    selectAccount: true,
   });
 
   useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-
-      if (id_token) {
-        const credential = GoogleAuthProvider.credential(id_token);
-
-        signInWithCredential(auth, credential).catch((error) => {
-          console.error('Firebase Google sign-in failed:', error);
-        });
-      }
+    if (response?.type !== 'success') {
+      return;
     }
-  }, [response]);
+
+    const { id_token } = response.params;
+
+    if (!id_token) {
+      console.error('Google sign-in did not return an ID token');
+      return;
+    }
+
+    signInWithGoogle(id_token)
+      .then(() => {
+        console.log('Firebase Google sign-in successful');
+      })
+      .catch((error) => {
+        console.error('Firebase Google sign-in failed:', error);
+      });
+  }, [response, signInWithGoogle]);
 
   return (
     <ThemedView style={styles.container}>
@@ -59,7 +61,8 @@ export default function LoginScreen() {
         <Pressable
           disabled={!request}
           onPress={() => promptAsync()}
-          style={styles.googleButton}>
+          style={styles.googleButton}
+        >
           <Feather name="log-in" size={20} color={Colors.text} />
 
           <ThemedText style={styles.buttonText}>
