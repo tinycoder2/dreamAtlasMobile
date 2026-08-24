@@ -31,7 +31,7 @@ export default function SettingsScreen() {
   const [hour, setHour] = useState(DEFAULT_REMINDER_HOUR);
   const [minute, setMinute] = useState(DEFAULT_REMINDER_MINUTE);
   const [exporting, setExporting] = useState(false);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     getScheduledReminder().then((reminder) => {
@@ -43,6 +43,29 @@ export default function SettingsScreen() {
     });
   }, []);
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Log out',
+      'Are you sure you want to log out of Dream Atlas?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+            } catch (error) {
+              console.error('Logout failed:', error);
+            }
+          },
+        },
+      ],
+    );
+  };
   async function onToggleReminder(value: boolean) {
     if (value) {
       const granted = await requestReminderPermission();
@@ -103,6 +126,7 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+
       <View style={styles.row}>
         <View style={styles.rowText}>
           <ThemedText type="defaultSemiBold">Nightly reminder</ThemedText>
@@ -137,6 +161,15 @@ export default function SettingsScreen() {
       <Pressable style={styles.exportRow} onPress={onExport} disabled={exporting}>
         <Feather name="download" size={18} color={Colors.text} />
         <ThemedText>{exporting ? 'Exporting...' : 'Export dreams as JSON'}</ThemedText>
+      </Pressable>
+
+      <Pressable
+        onPress={handleLogout}
+        style={styles.logoutButton}
+      >
+        <ThemedText style={styles.logoutText}>
+          Log out
+        </ThemedText>
       </Pressable>
     </View>
   );
@@ -179,5 +212,19 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: Radius.md,
     padding: 16,
+  },
+  logoutButton: {
+    marginTop: 24,
+    height: 52,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  logoutText: {
+    fontSize: 16,
   },
 });
