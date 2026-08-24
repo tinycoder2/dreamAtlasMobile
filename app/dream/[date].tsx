@@ -10,11 +10,78 @@ import { ThemedText } from '@/components/themed-text';
 import { Colors, Radius } from '@/constants/theme';
 import { useDayLog } from '@/hooks/use-day-log';
 import { useDreamsForDate } from '@/hooks/use-dreams';
+import { api, USER_ID } from '@/services/api';
 import type { Dream } from '@/types/dream';
+import { useState } from 'react';
+
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 
 export default function DreamDayListScreen() {
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
+  const [processing, setProcessing] = useState(false);
+
+  const startRecording = async () => {
+    const { granted } =
+      await AudioModule.requestRecordingPermissionsAsync();
+
+    if (!granted) {
+      return;
+    }
+
+    await setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
+    });
+
+    await recorder.prepareToRecordAsync();
+    recorder.record();
+  };
+
+  const stopRecording = async () => {
+    await recorder.stop();
+
+    const uri = recorder.uri;
+
+    if (!uri) {
+      console.error('No recording URI');
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      const formData = new FormData();
+
+      formData.append('audio', {
+        uri,
+        name: 'dream-recording.m4a',
+        type: 'audio/mp4',
+      } as any);
+
+      const createdDreams = await api.postMultipart<Dream[]>(
+        `/api/users/${USER_ID}/days/${date}/dreams/ai`,
+        formData,
+      );
+
+      console.log('AI created dreams:', createdDreams);
+
+      await refresh();
+    } catch (error) {
+      console.error('Failed to process dream audio:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const { date } = useLocalSearchParams<{ date: string }>();
-  const { dreams, remove, reorder } = useDreamsForDate(date);
+  const { dreams, remove, reorder, refresh } = useDreamsForDate(date);
   const { dayLog, save: saveDayLog } = useDayLog(date);
 
   function renderItem({ item, getIndex, drag, isActive }: RenderItemParams<Dream>) {
@@ -57,12 +124,41 @@ export default function DreamDayListScreen() {
         />
       )}
 
-      <Pressable
-        accessibilityLabel="Add dream"
-        style={styles.addButton}
-        onPress={() => router.push(`/dream/entry/new?date=${date}`)}>
-        <Feather name="plus" size={24} color={Colors.background} />
-      </Pressable>
+      <View style={styles.actionButtons}>
+        <Pressable
+          accessibilityLabel={
+            recorderState.isRecording
+              ? 'Stop Gemini recording'
+              : 'Record dream with Gemini'
+          }
+          disabled={processing}
+          style={styles.geminiButton}
+          onPress={
+            recorderState.isRecording
+              ? stopRecording
+              : startRecording
+          }
+        >
+          <Feather
+            name={recorderState.isRecording ? 'square' : 'mic'}
+            size={22}
+            color={Colors.background}
+          />
+        </Pressable>
+
+        <Pressable
+          accessibilityLabel="Add dream"
+          style={styles.addButton}
+          onPress={() =>
+            router.push(`/dream/entry/new?date=${date}`)
+          }>
+          <Feather
+            name="plus"
+            size={24}
+            color={Colors.background}
+          />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -94,10 +190,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  addButton: {
+  actionButtons: {
     position: 'absolute',
     right: 24,
     bottom: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  geminiButton: {
+    backgroundColor: Colors.lilac,
+    width: 56,
+    height: 56,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  addButton: {
     backgroundColor: Colors.lilac,
     width: 56,
     height: 56,
