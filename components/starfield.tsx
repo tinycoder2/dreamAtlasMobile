@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -21,6 +21,8 @@ interface StarConfig {
   delay: number;
 }
 
+const reactionRadius = 120;
+
 function randomBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
@@ -29,7 +31,7 @@ function makeStars(count: number): StarConfig[] {
   return Array.from({ length: count }, () => ({
     left: `${randomBetween(0, 100)}%`,
     top: `${randomBetween(0, 100)}%`,
-    size: randomBetween(1.5, 3),
+    size: randomBetween(1, 2.2),
     minOpacity: randomBetween(0.15, 0.35),
     maxOpacity: randomBetween(0.6, 1),
     twinkleDuration: randomBetween(1800, 4200),
@@ -39,34 +41,95 @@ function makeStars(count: number): StarConfig[] {
   }));
 }
 
-function Star({ config }: { config: StarConfig }) {
+function Star({
+  config,
+  wandX,
+  wandY,
+  screenWidth,
+  screenHeight,
+}: {
+  config: StarConfig;
+  wandX?: Animated.SharedValue<number>;
+  wandY?: Animated.SharedValue<number>;
+  screenWidth: number;
+  screenHeight: number;
+}) {
   const opacity = useSharedValue(config.minOpacity);
   const drift = useSharedValue(0);
+
+  const starX =
+    (parseFloat(config.left) / 100) * screenWidth;
+
+  const starY =
+    (parseFloat(config.top) / 100) * screenHeight;
 
   useEffect(() => {
     opacity.value = withDelay(
       config.delay,
       withRepeat(
-        withTiming(config.maxOpacity, { duration: config.twinkleDuration, easing: Easing.inOut(Easing.sin) }),
+        withTiming(config.maxOpacity, {
+          duration: config.twinkleDuration,
+          easing: Easing.inOut(Easing.sin),
+        }),
         -1,
-        true
-      )
+        true,
+      ),
     );
+
     drift.value = withDelay(
       config.delay,
       withRepeat(
-        withTiming(config.driftDistance, { duration: config.driftDuration, easing: Easing.inOut(Easing.sin) }),
+        withTiming(config.driftDistance, {
+          duration: config.driftDuration,
+          easing: Easing.inOut(Easing.sin),
+        }),
         -1,
-        true
-      )
+        true,
+      ),
     );
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: -drift.value }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    let reactionScale = 1;
+    let reactionOpacity = 1;
+
+    if (wandX && wandY) {
+      const wandScreenX =
+        screenWidth / 2 + wandX.value;
+
+      const wandScreenY =
+        screenHeight - 190 + wandY.value;
+
+      const dx = starX - wandScreenX;
+      const dy = starY - wandScreenY;
+
+      const distance = Math.sqrt(
+        dx * dx + dy * dy,
+      );
+
+      if (distance < reactionRadius) {
+        const strength =
+          1 - distance / reactionRadius;
+
+        reactionScale = 1 + strength * 2;
+        reactionOpacity = 1 + strength * 0.5;
+      }
+    }
+
+    return {
+      opacity: Math.min(
+        opacity.value * reactionOpacity,
+        1,
+      ),
+
+      transform: [
+        { translateY: -drift.value },
+        { scale: reactionScale },
+      ],
+    };
+  });
 
   return (
     <Animated.View
@@ -75,23 +138,54 @@ function Star({ config }: { config: StarConfig }) {
         {
           left: config.left,
           top: config.top,
-          width: config.size,
-          height: config.size,
-          borderRadius: config.size,
         },
         animatedStyle,
       ]}
-    />
+    >
+      <Text
+        style={[
+          styles.starText,
+          {
+            fontSize: config.size * 4,
+          },
+        ]}
+      >
+        ✦
+      </Text>
+    </Animated.View>
   );
 }
 
-export function Starfield({ count = 60 }: { count?: number }) {
-  const stars = useMemo(() => makeStars(count), [count]);
+export function Starfield({
+  count = 60,
+  wandX,
+  wandY,
+}: {
+  count?: number;
+  wandX?: Animated.SharedValue<number>;
+  wandY?: Animated.SharedValue<number>;
+}) {
+  const { width, height } = useWindowDimensions();
+
+  const stars = useMemo(
+    () => makeStars(count),
+    [count],
+  );
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+    >
       {stars.map((star, index) => (
-        <Star key={index} config={star} />
+        <Star
+          key={index}
+          config={star}
+          wandX={wandX}
+          wandY={wandY}
+          screenWidth={width}
+          screenHeight={height}
+        />
       ))}
     </View>
   );
@@ -100,6 +194,12 @@ export function Starfield({ count = 60 }: { count?: number }) {
 const styles = StyleSheet.create({
   star: {
     position: 'absolute',
-    backgroundColor: '#FBF7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  starText: {
+    color: '#FBF7FF',
+    includeFontPadding: false,
   },
 });
