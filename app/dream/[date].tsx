@@ -1,3 +1,4 @@
+import { DreamProcessingAnimation } from '@/components/dream-processing-animation';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -26,6 +27,8 @@ export default function DreamDayListScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
   const [processing, setProcessing] = useState(false);
+  const showDreamAnimation =
+    recorderState.isRecording || processing;
 
   const startRecording = async () => {
     const { granted } =
@@ -124,6 +127,11 @@ export default function DreamDayListScreen() {
         />
       )}
 
+      {showDreamAnimation && (
+        <DreamProcessingAnimation processing={processing} />
+      )}
+
+
       <View style={styles.actionButtons}>
         <Pressable
           accessibilityLabel={
@@ -158,6 +166,8 @@ export default function DreamDayListScreen() {
             color={Colors.background}
           />
         </Pressable>
+
+
       </View>
     </View>
   );
