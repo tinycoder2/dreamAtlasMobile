@@ -1,18 +1,24 @@
-import { useAuth } from '@/context/AuthContext';
-import { Feather } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
-import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    View,
-} from 'react-native';
-
+import { InsightsLoading } from '@/components/insights-loading';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Radius } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { api } from '@/services/api';
+import { Feather } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import {
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    View
+} from 'react-native';
+import Animated, {
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withTiming,
+} from 'react-native-reanimated';
 
 type WeeklyTheme = {
     name: string;
@@ -79,6 +85,14 @@ export default function InsightsScreen() {
     const [error, setError] = useState<string | null>(null);
     const { user } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
+    const refreshRotation = useSharedValue(0);
+
+    const refreshCompassStyle = useAnimatedStyle(() => ({
+        transform: [
+            { rotate: `${refreshRotation.value}deg` },
+        ],
+    }));
+
 
     async function loadInsights(start: Date) {
         try {
@@ -131,15 +145,34 @@ export default function InsightsScreen() {
         }
     }
 
-    useEffect(() => {
-        loadInsights(weekStart);
-    }, [weekStart, user]);
 
     function changeWeek(amount: number) {
         const next = new Date(weekStart);
         next.setDate(next.getDate() + amount * 7);
         setWeekStart(next);
     }
+
+    useEffect(() => {
+        loadInsights(weekStart);
+    }, [weekStart, user]);
+
+
+    useEffect(() => {
+        if (refreshing) {
+            refreshRotation.value = withRepeat(
+                withTiming(360, {
+                    duration: 1000,
+                    easing: Easing.linear,
+                }),
+                -1,
+                false,
+            );
+        } else {
+            refreshRotation.value = 0;
+        }
+    }, [refreshing]);
+
+    
 
     return (
         <ThemedView style={styles.container}>
@@ -174,9 +207,7 @@ export default function InsightsScreen() {
             </View>
 
             {loading ? (
-                <View style={styles.center}>
-                    <ActivityIndicator color={Colors.lilac} />
-                </View>
+                <InsightsLoading />
             ) : error ? (
                 <View style={styles.center}>
                     <ThemedText color="textMuted">
@@ -273,22 +304,25 @@ export default function InsightsScreen() {
                         onPress={refreshInsights}
                         disabled={refreshing}>
                         {refreshing ? (
-                            <ActivityIndicator
-                                size="small"
-                                color={Colors.background}
-                            />
-                        ) : (
-                            <>
+                            <Animated.View
+                                style={refreshCompassStyle}>
                                 <Feather
-                                    name="refresh-cw"
-                                    size={16}
+                                    name="compass"
+                                    size={17}
                                     color={Colors.background}
                                 />
-                                <ThemedText style={styles.refreshButtonText}>
-                                    Refresh Insights
-                                </ThemedText>
-                            </>
+                            </Animated.View>
+                        ) : (
+                            <Feather
+                                name="refresh-cw"
+                                size={16}
+                                color={Colors.background}
+                            />
                         )}
+
+                        <ThemedText style={styles.refreshButtonText}>
+                            {refreshing ? 'Re-reading your dreams...' : 'Refresh Insights'}
+                        </ThemedText>
                     </Pressable>
                 </ScrollView>
             )}
