@@ -10,7 +10,8 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.dreamatlas.app"
+      "bundleIdentifier": "com.dreamatlas.app",
+      "deploymentTarget": "15.4"
     },
     "android": {
       "package": "com.dreamatlas.app",
@@ -58,7 +59,8 @@
           "microphonePermission": "Dream Atlas needs access to your microphone to record your dreams."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "@lottiefiles/dotlottie-react-native/plugin"
     ],
     "experiments": {
       "typedRoutes": true,
