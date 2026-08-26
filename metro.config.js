@@ -5,6 +5,7 @@ const config = getDefaultConfig(__dirname);
 // expo-sqlite web support needs Metro to resolve .wasm and the dev
 // server to send COOP/COEP headers (required for SharedArrayBuffer).
 config.resolver.assetExts.push('wasm');
+config.resolver.assetExts.push('lottie');
 
 config.server.enhanceMiddleware = (middleware) => {
   return (req, res, next) => {
