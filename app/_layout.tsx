@@ -70,16 +70,41 @@ export default function RootLayout() {
           <AuthGate />
           <ThemeProvider value={dreamTheme}>
             <Stack screenOptions={{ contentStyle: { backgroundColor: Colors.background } }}>
-              <Stack.Screen name="login" options={{ headerShown: false }} />
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="dream/[date]" options={{ title: 'Dreams' }} />
+
+              <Stack.Screen
+                name="login"
+                options={{ headerShown: false }}
+              />
+
+              <Stack.Screen
+                name="(tabs)"
+                options={{ headerShown: false }}
+              />
+
+              <Stack.Screen
+                name="dream/[date]"
+                options={{ title: 'Dreams' }}
+              />
+
               <Stack.Screen
                 name="dream/entry/[id]"
-                options={{ presentation: 'modal', title: 'Dream entry' }}
+                options={{
+                  presentation: 'modal',
+                  title: 'Dream entry',
+                }}
               />
-              <Stack.Screen name="list" options={{ title: 'All Dreams' }} />
-              <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+
+              <Stack.Screen
+                name="list"
+                options={{ title: 'All Dreams' }}
+              />
+
+              <Stack.Screen
+                name="settings"
+                options={{ title: 'Settings' }}
+              />
             </Stack>
+
             <StatusBar style="light" />
           </ThemeProvider>
         </AuthProvider>
