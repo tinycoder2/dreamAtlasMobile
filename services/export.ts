@@ -2,7 +2,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
-import { api, USER_ID } from '@/services/api';
+import { api } from '@/services/api';
 
 type DaySummary = {
   date: string;
@@ -19,21 +19,18 @@ type DayDetails = {
   dreams: unknown[];
 };
 
-export async function exportDreamsAsJson(): Promise<void> {
-  // Get all days
+export async function exportDreamsAsJson(userId: string): Promise<void> {
   const days = await api.get<DaySummary[]>(
-    `/api/users/${USER_ID}/days?from=2000-01-01&to=2099-12-31`,
+    `/api/users/${userId}/days?from=2000-01-01&to=2099-12-31`,
   );
 
-  // Get sleep + dreams for every day
   const details = await Promise.all(
     days.map((day) =>
       api.get<DayDetails>(
-        `/api/users/${USER_ID}/days/${day.date}/details`,
+        `/api/users/${userId}/days/${day.date}/details`,
       ),
     ),
   );
-
   const json = JSON.stringify(details, null, 2);
   const filename = `dream-atlas-export-${Date.now()}.json`;
 
