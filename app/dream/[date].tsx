@@ -15,6 +15,7 @@ import { useDreamsForDate } from '@/hooks/use-dreams';
 import { api } from '@/services/api';
 import type { Dream } from '@/types/dream';
 import { useState } from 'react';
+import { Platform } from 'react-native';
 
 import {
   AudioModule,
@@ -50,12 +51,16 @@ export default function DreamDayListScreen() {
   };
 
   const stopRecording = async () => {
+    console.log('🎙️ stopRecording START');
+
     await recorder.stop();
+    console.log('🎙️ recorder.stop() completed');
 
     const uri = recorder.uri;
+    console.log('🎙️ recorder.uri:', uri);
 
     if (!uri) {
-      console.error('No recording URI');
+      console.error('❌ No recording URI');
       return;
     }
 
@@ -64,29 +69,55 @@ export default function DreamDayListScreen() {
     try {
       const formData = new FormData();
 
-      formData.append('audio', {
-        uri,
-        name: 'dream-recording.m4a',
-        type: 'audio/mp4',
-      } as any);
+      console.log('🌐 Platform:', Platform.OS);
+
+      if (Platform.OS === 'web') {
+        console.log('🌐 Fetching recorded blob...');
+
+        const response = await fetch(uri);
+
+        console.log('🌐 Blob fetch response:', response.status, response.ok);
+
+        const blob = await response.blob();
+
+        console.log('🌐 Blob:', {
+          size: blob.size,
+          type: blob.type,
+        });
+
+        formData.append('audio', blob, 'dream-recording.webm');
+
+        console.log('🌐 Audio appended to FormData');
+      } else {
+        formData.append('audio', {
+          uri,
+          name: 'dream-recording.m4a',
+          type: 'audio/mp4',
+        } as any);
+      }
 
       if (!user) {
-        console.error('No authenticated user');
+        console.error('❌ No authenticated user');
         return;
       }
+
+      console.log('🚀 Sending AI request...');
 
       const createdDreams = await api.postMultipart<Dream[]>(
         `/api/users/${user.uid}/days/${date}/dreams/ai`,
         formData,
       );
 
-      console.log('AI created dreams:', createdDreams);
+      console.log('✅ AI created dreams:', createdDreams);
 
       await refresh();
+
+      console.log('🔄 Refresh completed');
     } catch (error) {
-      console.error('Failed to process dream audio:', error);
+      console.error('❌ Failed to process dream audio:', error);
     } finally {
       setProcessing(false);
+      console.log('🎙️ stopRecording END');
     }
   };
 

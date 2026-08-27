@@ -92,7 +92,11 @@ export default function SettingsScreen() {
   async function onExport() {
     setExporting(true);
     try {
-      await exportDreamsAsJson();
+      if (!user) {
+        console.error('❌ No authenticated user');
+        return;
+      }
+      await await exportDreamsAsJson(user.uid);;
     } finally {
       setExporting(false);
     }
