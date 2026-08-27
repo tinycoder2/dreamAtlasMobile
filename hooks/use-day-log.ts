@@ -1,19 +1,25 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 
-import { api, USER_ID } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import { api } from '@/services/api';
 import type { DayLog, DayLogDraft } from '@/types/day-log';
 
 export function useDayLog(date: string) {
   const [dayLog, setDayLog] = useState<DayLog | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   const refresh = useCallback(async () => {
     setLoading(true);
 
     try {
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
       const result = await api.get<DayLog>(
-        `/api/users/${USER_ID}/days/${date}`,
+        `/api/users/${user.uid}/days/${date}`,
       );
 
       setDayLog(result);
@@ -37,8 +43,12 @@ export function useDayLog(date: string) {
 
   const save = useCallback(
     async (draft: Omit<DayLogDraft, 'date'>) => {
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
       const result = await api.put<DayLog>(
-        `/api/users/${USER_ID}/days/${date}`,
+        `/api/users/${user.uid}/days/${date}`,
         {
           date,
           ...draft,
