@@ -3,7 +3,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Starfield } from '@/components/starfield';
 import { ThemedText } from '@/components/themed-text';
@@ -16,13 +16,19 @@ WebBrowser.maybeCompleteAuthSession();
 export default function LoginScreen() {
   const { signInWithGoogle } = useAuth();
 
+  console.log('🔥 Login platform:', Platform.OS);
+
+  // iOS/Android Google OAuth (expo-auth-session)
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
     selectAccount: true,
   });
 
+  // Process expo-auth-session response (iOS/Android only)
   useEffect(() => {
+    if (Platform.OS === 'web') return;
+
     if (response?.type !== 'success') {
       return;
     }
@@ -36,34 +42,84 @@ export default function LoginScreen() {
 
     signInWithGoogle(id_token)
       .then(() => {
-        console.log('Firebase Google sign-in successful');
+        console.log('🔥 Firebase Google sign-in successful');
       })
       .catch((error) => {
-        console.error('Firebase Google sign-in failed:', error);
+        console.error(
+          '🔥 Firebase Google sign-in failed:',
+          error
+        );
       });
   }, [response, signInWithGoogle]);
+
+  async function handleGoogleSignIn() {
+    if (Platform.OS === 'web') {
+      // On web: redirect to Google in the SAME tab.
+      // After the user picks an account Google redirects back to our origin
+      // with #id_token=… in the hash. AuthProvider picks that up on reload.
+      const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+      const redirectUri = window.location.origin;
+
+      const nonce = [...crypto.getRandomValues(new Uint8Array(32))]
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      const params = new URLSearchParams({
+        client_id: clientId!,
+        redirect_uri: redirectUri,
+        response_type: 'id_token',
+        scope: 'openid email profile',
+        nonce,
+        prompt: 'select_account',
+      });
+
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      return;
+    }
+
+    // iOS / Android
+    if (!request) {
+      console.log('🔥 Google request not ready');
+      return;
+    }
+
+    await promptAsync();
+  }
 
   return (
     <ThemedView style={styles.container}>
       <Starfield />
 
       <View style={styles.content}>
-        <Feather name="moon" size={42} color={Colors.lilac} />
+        <Feather
+          name="moon"
+          size={42}
+          color={Colors.lilac}
+        />
 
-        <ThemedText type="title" style={styles.title}>
+        <ThemedText
+          type="title"
+          style={styles.title}
+        >
           Dream Atlas
         </ThemedText>
 
-        <ThemedText color="textMuted" style={styles.subtitle}>
+        <ThemedText
+          color="textMuted"
+          style={styles.subtitle}
+        >
           Your dreams, remembered.
         </ThemedText>
 
         <Pressable
-          disabled={!request}
-          onPress={() => promptAsync()}
+          onPress={handleGoogleSignIn}
           style={styles.googleButton}
         >
-          <Feather name="log-in" size={20} color={Colors.text} />
+          <Feather
+            name="log-in"
+            size={20}
+            color={Colors.text}
+          />
 
           <ThemedText style={styles.buttonText}>
             Continue with Google
