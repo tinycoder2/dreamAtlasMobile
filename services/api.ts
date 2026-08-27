@@ -10,7 +10,6 @@ async function request<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-
   const user = auth.currentUser;
 
   if (!user) {
@@ -19,14 +18,16 @@ async function request<T>(
 
   const idToken = await user.getIdToken();
 
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(options?.headers ?? {}),
-      Authorization: `Bearer ${idToken}`,
+  const response = await fetch(
+    `${API_BASE_URL}${path}`,
+    {
+      ...options,
+      headers: {
+        ...(options?.headers ?? {}),
+        Authorization: `Bearer ${idToken}`,
+      },
     },
-  });
+  );
 
   if (!response.ok) {
     const body = await response.text();

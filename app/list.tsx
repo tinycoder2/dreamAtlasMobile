@@ -9,8 +9,9 @@ import { ThemedText } from '@/components/themed-text';
 import { DREAM_TYPES } from '@/constants/dream-types';
 import { MOODS } from '@/constants/moods';
 import { Colors, Radius } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useRecentTags } from '@/hooks/use-dreams';
-import { api, USER_ID } from '@/services/api';
+import { api } from '@/services/api';
 import type { Dream, DreamType, Mood } from '@/types/dream';
 
 
@@ -23,63 +24,71 @@ export default function ListScreen() {
   const [tag, setTag] = useState<string | null>(null);
   const [dreams, setDreams] = useState<Dream[]>([]);
   const availableTags = useRecentTags();
+  const { user } = useAuth();
 
-const refresh = useCallback(async () => {
-  setLoading(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
 
-  try {
-    const params = new URLSearchParams();
+    try {
+      const params = new URLSearchParams();
 
-    if (query.trim()) {
-      params.set('text', query.trim());
+      if (query.trim()) {
+        params.set('text', query.trim());
+      }
+
+      if (mood) {
+        params.set('mood', mood);
+      }
+
+      if (dreamType) {
+        params.set('dreamType', dreamType);
+      }
+
+      if (tag) {
+        params.set('tag', tag);
+      }
+
+      const queryString = params.toString();
+
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
+      const results = await api.get<Dream[]>(
+        `/api/users/${user.uid}/dreams/search${queryString ? `?${queryString}` : ''
+        }`,
+      );
+
+      setDreams(results);
+    } catch (error) {
+      console.error('Failed to search dreams', error);
+      setDreams([]);
+    } finally {
+      setLoading(false);
     }
+  }, [query, mood, dreamType, tag]);
 
-    if (mood) {
-      params.set('mood', mood);
+  useEffect(() => {
+    const timeout = setTimeout(refresh, 250);
+
+    return () => clearTimeout(timeout);
+  }, [refresh]);
+
+  async function onDelete(id: string, date: string) {
+    try {
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
+      await api.delete(
+        `/api/users/${user.uid}/days/${date}/dreams/${id}`,
+      );
+
+      await refresh();
+    } catch (error) {
+      console.error('Failed to delete dream', error);
     }
-
-    if (dreamType) {
-      params.set('dreamType', dreamType);
-    }
-
-    if (tag) {
-      params.set('tag', tag);
-    }
-
-    const queryString = params.toString();
-
-    const results = await api.get<Dream[]>(
-      `/api/users/${USER_ID}/dreams/search${
-        queryString ? `?${queryString}` : ''
-      }`,
-    );
-
-    setDreams(results);
-  } catch (error) {
-    console.error('Failed to search dreams', error);
-    setDreams([]);
-  } finally {
-    setLoading(false);
   }
-}, [query, mood, dreamType, tag]);
-
-useEffect(() => {
-  const timeout = setTimeout(refresh, 250);
-
-  return () => clearTimeout(timeout);
-}, [refresh]);
-
-async function onDelete(id: string, date: string) {
-  try {
-    await api.delete(
-      `/api/users/${USER_ID}/days/${date}/dreams/${id}`,
-    );
-
-    await refresh();
-  } catch (error) {
-    console.error('Failed to delete dream', error);
-  }
-}
 
   return (
     <View style={styles.root}>

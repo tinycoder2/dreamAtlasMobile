@@ -9,9 +9,10 @@ import { DreamPreviewCard } from '@/components/dream-preview-card';
 import { Starfield } from '@/components/starfield';
 import { ThemedText } from '@/components/themed-text';
 import { Colors, Radius } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useDayLog } from '@/hooks/use-day-log';
 import { useDreamsForDate } from '@/hooks/use-dreams';
-import { api, USER_ID } from '@/services/api';
+import { api } from '@/services/api';
 import type { Dream } from '@/types/dream';
 import { useState } from 'react';
 
@@ -27,6 +28,7 @@ export default function DreamDayListScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
   const [processing, setProcessing] = useState(false);
+  const { user } = useAuth();
   const showDreamAnimation =
     recorderState.isRecording || processing;
 
@@ -68,8 +70,13 @@ export default function DreamDayListScreen() {
         type: 'audio/mp4',
       } as any);
 
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
+
       const createdDreams = await api.postMultipart<Dream[]>(
-        `/api/users/${USER_ID}/days/${date}/dreams/ai`,
+        `/api/users/${user.uid}/days/${date}/dreams/ai`,
         formData,
       );
 

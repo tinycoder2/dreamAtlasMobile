@@ -1,17 +1,23 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 
-import { api, USER_ID } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import { api } from '@/services/api';
 import type { Dream, DreamDraft } from '@/types/dream';
 
 export function useDreamDates() {
   const [dates, setDates] = useState<string[]>([]);
+  const { user } = useAuth();
 
   const refresh = useCallback(async () => {
     try {
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
       const result = await api.get<{
         date: string;
-      }[]>(`/api/users/${USER_ID}/days`);
+      }[]>(`/api/users/${user.uid}/days`);
 
       setDates(result.map((day) => day.date));
     } catch (error) {
@@ -32,13 +38,19 @@ export function useDreamDates() {
 export function useDreamsForDate(date: string) {
   const [dreams, setDreams] = useState<Dream[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   const refresh = useCallback(async () => {
     setLoading(true);
 
     try {
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
+
       const result = await api.get<Dream[]>(
-        `/api/users/${USER_ID}/days/${date}/dreams`,
+        `/api/users/${user.uid}/days/${date}/dreams`,
       );
 
       setDreams(result);
@@ -58,14 +70,19 @@ export function useDreamsForDate(date: string) {
 
   const save = useCallback(
     async (id: string | null, draft: DreamDraft) => {
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
+
       if (id == null) {
         await api.post<Dream>(
-          `/api/users/${USER_ID}/days/${date}/dreams`,
+          `/api/users/${user.uid}/days/${date}/dreams`,
           draft,
         );
       } else {
         await api.put<Dream>(
-          `/api/users/${USER_ID}/days/${date}/dreams/${id}`,
+          `/api/users/${user.uid}/days/${date}/dreams/${id}`,
           draft,
         );
       }
@@ -77,8 +94,13 @@ export function useDreamsForDate(date: string) {
 
   const remove = useCallback(
     async (id: string) => {
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
+
       await api.delete(
-        `/api/users/${USER_ID}/days/${date}/dreams/${id}`,
+        `/api/users/${user.uid}/days/${date}/dreams/${id}`,
       );
 
       await refresh();
@@ -87,21 +109,27 @@ export function useDreamsForDate(date: string) {
   );
 
   const reorder = useCallback(
-  async (orderedIds: string[]) => {
-    try {
-      await api.put(
-        `/api/users/${USER_ID}/days/${date}/dreams/order`,
-        { orderedIds },
-      );
+    async (orderedIds: string[]) => {
+      try {
+        if (!user) {
+          console.error('No authenticated user');
+          return;
+        }
 
-      await refresh();
-    } catch (error) {
-      console.error('Failed to reorder dreams', error);
-      throw error;
-    }
-  },
-  [date, refresh],
-);
+        await api.put(
+
+          `/api/users/${user.uid}/days/${date}/dreams/order`,
+          { orderedIds },
+        );
+
+        await refresh();
+      } catch (error) {
+        console.error('Failed to reorder dreams', error);
+        throw error;
+      }
+    },
+    [date, refresh],
+  );
 
 
   return {
@@ -116,6 +144,7 @@ export function useDreamsForDate(date: string) {
 
 export function useRecentTags() {
   const [tags, setTags] = useState<string[]>([]);
+  const { user } = useAuth();
 
   useFocusEffect(
     useCallback(() => {
@@ -123,8 +152,13 @@ export function useRecentTags() {
 
       async function loadTags() {
         try {
+          if (!user) {
+            console.error('No authenticated user');
+            return;
+          }
+
           const result = await api.get<string[]>(
-            `/api/users/${USER_ID}/dreams/tags/recent`,
+            `/api/users/${user.uid}/dreams/tags/recent`,
           );
 
           if (!cancelled) {
