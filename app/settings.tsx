@@ -1,7 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 import { Alert, Image, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
@@ -26,7 +25,6 @@ function formatTime(hour: number, minute: number) {
 }
 
 export default function SettingsScreen() {
-  const db = useSQLiteContext();
   const [reminderOn, setReminderOn] = useState(false);
   const [hour, setHour] = useState(DEFAULT_REMINDER_HOUR);
   const [minute, setMinute] = useState(DEFAULT_REMINDER_MINUTE);
@@ -94,7 +92,11 @@ export default function SettingsScreen() {
   async function onExport() {
     setExporting(true);
     try {
-      await exportDreamsAsJson();
+      if (!user) {
+        console.error('❌ No authenticated user');
+        return;
+      }
+      await await exportDreamsAsJson(user.uid);;
     } finally {
       setExporting(false);
     }
