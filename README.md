@@ -66,7 +66,7 @@ Before running the application locally, install the following:
 * **CocoaPods** — required for iOS native dependencies
 * **Google Cloud CLI (`gcloud`)** — required for Google Cloud authentication
 
-You will also need access to a running **Dream Atlas backend**.
+You will also need access to a running **[Dream Atlas backend](https://github.com/tinycoder2/dreamAtlasBackend)**
 
 > The frontend does not operate completely independently. Features such as authentication, dream processing, and cloud-backed data require the backend API.
 
@@ -150,12 +150,6 @@ On macOS, you can find your Wi-Fi IP address with:
 
 ```bash
 ipconfig getifaddr en0
-```
-
-For example:
-
-```env
-EXPO_PUBLIC_API_URL=http://192.168.1.100:8080
 ```
 
 **Do not use `localhost` when connecting from a physical device.**
