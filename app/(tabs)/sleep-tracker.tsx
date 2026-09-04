@@ -1,16 +1,19 @@
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
-  View,
+  View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Starfield } from '@/components/starfield';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Colors, Radius } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/services/api';
 
@@ -93,18 +96,26 @@ type DayItem = {
 };
 
 export default function SleepTrackerScreen() {
+  const router = useRouter();
   const { user } = useAuth();
 
-
   const [weekStart, setWeekStart] = useState(
-    getSunday(new Date('2026-09-01'))
+    getSunday(new Date())
   );
 
-  const [selectedDay, setSelectedDay] = useState('2026-09-01');
+  const [selectedDay, setSelectedDay] = useState(
+    formatDate(new Date())
+  );
 
-  const [data, setData] = useState<WeeklySleepResponse | null>(null);
+  const [data, setData] =
+    useState<WeeklySleepResponse | null>(null);
+
+  const [insights, setInsights] =
+    useState<WeeklySleepInsightsResponse | null>(null);
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] =
+    useState<string | null>(null);
 
   const weekEnd = useMemo(
     () => addDays(weekStart, 6),
@@ -123,8 +134,10 @@ export default function SleepTrackerScreen() {
   const selectedSleep = selected?.sleep ?? null;
   const selectedDreams = selected?.dreams ?? [];
 
-  const [insights, setInsights] =
-    useState<WeeklySleepInsightsResponse | null>(null);
+  const currentWeekStart = getSunday(new Date());
+
+  const isCurrentWeek =
+    weekStart.getTime() === currentWeekStart.getTime();
 
   useEffect(() => {
     if (!user) {
@@ -142,7 +155,6 @@ export default function SleepTrackerScreen() {
     try {
       setLoading(true);
       setError(null);
-
 
       const [sleepResponse, insightsResponse] =
         await Promise.all([
@@ -162,16 +174,20 @@ export default function SleepTrackerScreen() {
       setData(sleepResponse);
       setInsights(insightsResponse);
 
-      // Keep selected day inside the currently loaded week.
-      const selectedExists = sleepResponse.days.some(
-        (day) => day.date === selectedDay
-      );
+      const selectedExists =
+        sleepResponse.days.some(
+          (day) => day.date === selectedDay
+        );
 
       if (!selectedExists) {
         setSelectedDay(sleepResponse.weekStart);
       }
     } catch (err) {
-      console.error('Failed to load sleep data:', err);
+      console.error(
+        'Failed to load sleep data:',
+        err
+      );
+
       setError('Unable to load sleep data.');
       setData(null);
       setInsights(null);
@@ -180,190 +196,374 @@ export default function SleepTrackerScreen() {
     }
   }
 
-  function goToPreviousWeek() {
-    const previous = addDays(weekStart, -7);
-
-    setWeekStart(previous);
-    setSelectedDay(formatDate(addDays(previous, 2)));
-  }
-
-  function goToNextWeek() {
-    const next = addDays(weekStart, 7);
+  function changeWeek(amount: number) {
+    const next = addDays(
+      weekStart,
+      amount * 7
+    );
 
     setWeekStart(next);
-    setSelectedDay(formatDate(addDays(next, 2)));
+
+    setSelectedDay(
+      formatDate(addDays(next, 2))
+    );
   }
+
+  /*
+   * Wizard hat jingle.
+   *
+   * The hat stays still for 3 seconds,
+   * then quickly shifts back and forth
+   * like something underneath is moving.
+   */
+  const hatJingle = useMemo(
+    () => new Animated.Value(0),
+    []
+  );
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.delay(3000),
+
+        Animated.timing(hatJingle, {
+          toValue: 1,
+          duration: 55,
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(hatJingle, {
+          toValue: -1,
+          duration: 55,
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(hatJingle, {
+          toValue: 0.7,
+          duration: 45,
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(hatJingle, {
+          toValue: -0.5,
+          duration: 45,
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(hatJingle, {
+          toValue: 0,
+          duration: 60,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [hatJingle]);
+
+  const hatJingleX = hatJingle.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [-2.5, 2.5],
+  });
+
+  const hatJingleY = hatJingle.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [1.5, -1.5],
+  });
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Week navigation */}
-          <View style={styles.weekHeader}>
-            <Pressable
-              style={styles.iconButton}
-              onPress={goToPreviousWeek}
-            >
-              <Feather
-                name="chevron-left"
-                size={22}
-                color="#fff"
-              />
-            </Pressable>
+      <Starfield />
 
-            <ThemedText type="subtitle">
-              Week of {formatWeekTitle(weekStart)}
+      <View style={styles.contentLayer}>
+        {/* Week selector */}
+        <View style={styles.weekSelector}>
+          <Pressable
+            onPress={() => changeWeek(-1)}
+            style={styles.weekArrow}
+            hitSlop={8}
+          >
+            <Feather
+              name="chevron-left"
+              size={20}
+              color={Colors.lilac}
+            />
+          </Pressable>
+
+          <View style={styles.weekInfo}>
+            <ThemedText
+              color="textMuted"
+              style={styles.weekCaption}
+            >
+              WEEK OF
+            </ThemedText>
+
+            <ThemedText
+              style={styles.weekLabel}
+            >
+              {formatWeekRange(weekStart)}
+            </ThemedText>
+          </View>
+
+          <Pressable
+            onPress={() => changeWeek(1)}
+            disabled={isCurrentWeek}
+            style={[
+              styles.weekArrow,
+              isCurrentWeek &&
+              styles.weekArrowDisabled,
+            ]}
+            hitSlop={8}
+          >
+            <Feather
+              name="chevron-right"
+              size={20}
+              color={
+                isCurrentWeek
+                  ? Colors.textMuted
+                  : Colors.lilac
+              }
+            />
+          </Pressable>
+        </View>
+
+        {/* Day selector */}
+        <View style={styles.daysRow}>
+          {days.map((day) => {
+            const isSelected =
+              day.key === selectedDay;
+
+            return (
+              <Pressable
+                key={day.key}
+                onPress={() =>
+                  setSelectedDay(day.key)
+                }
+                style={styles.dayItem}
+              >
+                <ThemedText
+                  color={
+                    isSelected
+                      ? 'text'
+                      : 'textMuted'
+                  }
+                  style={styles.dayLabel}
+                >
+                  {day.label}
+                </ThemedText>
+
+                <View
+                  style={[
+                    styles.dayCircle,
+                    isSelected &&
+                    styles.dayCircleSelected,
+                  ]}
+                >
+                  <ThemedText
+                    color={
+                      isSelected
+                        ? 'text'
+                        : 'textMuted'
+                    }
+                    style={styles.dayNumber}
+                  >
+                    {day.date}
+                  </ThemedText>
+                </View>
+
+                {isSelected && (
+                  <View
+                    style={styles.selectedDot}
+                  />
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator
+              color={Colors.lilac}
+            />
+
+            <ThemedText
+              color="textMuted"
+              style={styles.loadingText}
+            >
+              Reading your sleep...
+            </ThemedText>
+          </View>
+        ) : error ? (
+          <View style={styles.center}>
+            <Feather
+              name="moon"
+              size={34}
+              color={Colors.lilac}
+            />
+
+            <ThemedText
+              type="subtitle"
+              style={styles.emptyTitle}
+            >
+              Something went wrong
+            </ThemedText>
+
+            <ThemedText
+              color="textMuted"
+              style={styles.emptyText}
+            >
+              {error}
             </ThemedText>
 
             <Pressable
-              style={styles.iconButton}
-              onPress={goToNextWeek}
+              style={styles.retryButton}
+              onPress={loadWeek}
             >
-              <Feather
-                name="chevron-right"
-                size={22}
-                color="#fff"
-              />
+              <ThemedText
+                style={styles.retryText}
+              >
+                Retry
+              </ThemedText>
             </Pressable>
           </View>
-
-          {/* Days */}
-          <View style={styles.daysRow}>
-            {days.map((day) => {
-              const isSelected = day.key === selectedDay;
-
-              return (
-                <Pressable
-                  key={day.key}
-                  onPress={() => setSelectedDay(day.key)}
-                  style={styles.dayItem}
-                >
-                  <ThemedText
-                    color={isSelected ? 'text' : 'textMuted'}
-                    style={styles.dayLabel}
-                  >
-                    {day.label}
-                  </ThemedText>
-
-                  <View
-                    style={[
-                      styles.dayCircle,
-                      isSelected && styles.dayCircleSelected,
-                    ]}
-                  >
-                    <ThemedText
-                      color={isSelected ? 'text' : 'textMuted'}
-                      style={styles.dayNumber}
-                    >
-                      {day.date}
-                    </ThemedText>
-                  </View>
-
-                  {isSelected && (
-                    <View style={styles.selectedDot} />
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {loading && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color="#fff" />
+        ) : (
+          <ScrollView
+            contentContainerStyle={
+              styles.scrollContent
+            }
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Sleep */}
+            <View style={styles.section}>
               <ThemedText
-                color="textMuted"
-                style={styles.loadingText}
+                type="subtitle"
+                style={styles.sectionTitle}
               >
-                Loading sleep data...
+                {selected
+                  ? days
+                    .find(
+                      (day) =>
+                        day.key ===
+                        selectedDay
+                    )
+                    ?.label.toUpperCase()
+                  : 'SLEEP'}{' '}
+                NIGHT'S SLEEP
               </ThemedText>
-            </View>
-          )}
 
-          {error && !loading && (
-            <View style={styles.errorContainer}>
-              <ThemedText>{error}</ThemedText>
-
-              <Pressable
-                style={styles.retryButton}
-                onPress={loadWeek}
-              >
-                <ThemedText>Retry</ThemedText>
-              </Pressable>
-            </View>
-          )}
-
-          {!loading && !error && (
-            <>
-              {/* Sleep */}
-              <View style={styles.section}>
-                <ThemedText
-                  type="subtitle"
-                  style={styles.sectionTitle}
-                >
-                  {selected
-                    ? days
-                      .find((day) => day.key === selectedDay)
-                      ?.label.toUpperCase()
-                    : 'SLEEP'}{' '}
-                  NIGHT'S SLEEP
-                </ThemedText>
-
-                {selectedSleep ? (
-                  <>
-                    <View style={styles.sleepTimes}>
-                      <ThemedText color="textMuted">
+              {selectedSleep ? (
+                <View style={styles.card}>
+                  <View
+                    style={styles.sleepTimes}
+                  >
+                    <View>
+                      <ThemedText
+                        style={styles.timeValue}
+                      >
                         {formatLocalTime(
                           selectedSleep.startTimeUtc,
                           selectedSleep.startUtcOffsetSeconds
                         )}
                       </ThemedText>
 
-                      <ThemedText style={styles.duration}>
+                      <ThemedText
+                        color="textMuted"
+                        style={styles.timeLabel}
+                      >
+                        BEDTIME
+                      </ThemedText>
+                    </View>
+
+                    <View
+                      style={
+                        styles.durationContainer
+                      }
+                    >
+                      <Feather
+                        name="moon"
+                        size={14}
+                        color={Colors.lilac}
+                      />
+
+                      <ThemedText
+                        style={styles.duration}
+                      >
                         {formatDuration(
                           selectedSleep.durationMinutes
                         )}
                       </ThemedText>
+                    </View>
 
-                      <ThemedText color="textMuted">
+                    <View
+                      style={styles.wakeTime}
+                    >
+                      <ThemedText
+                        style={styles.timeValue}
+                      >
                         {formatLocalTime(
                           selectedSleep.endTimeUtc,
                           selectedSleep.endUtcOffsetSeconds
                         )}
                       </ThemedText>
+
+                      <ThemedText
+                        color="textMuted"
+                        style={styles.timeLabel}
+                      >
+                        WAKE
+                      </ThemedText>
                     </View>
+                  </View>
 
-                    <View style={styles.sleepLine}>
-                      <View style={styles.sleepLineFill} />
-                    </View>
-
-                    {/* Stage summary */}
-                    <StageSummary sleep={selectedSleep} />
-                  </>
-                ) : (
-                  <EmptySleepState />
-                )}
-              </View>
-
-              {/* Heart rate */}
-              {selectedSleep && (
-                <View style={styles.section}>
-                  <ThemedText
-                    type="subtitle"
-                    style={styles.sectionTitle}
+                  <View
+                    style={styles.sleepTimeline}
                   >
-                    HEART RATE
-                  </ThemedText>
+                    <View
+                      style={
+                        styles.sleepTimelineFill
+                      }
+                    />
+                  </View>
 
-                  <View style={styles.heartRateContainer}>
-                    <View style={styles.hrLabels}>
+                  <StageSummary
+                    sleep={selectedSleep}
+                  />
+                </View>
+              ) : (
+                <EmptySleepState />
+              )}
+            </View>
+
+            {/* Heart rate */}
+            {selectedSleep && (
+              <View style={styles.section}>
+                <ThemedText
+                  type="subtitle"
+                  style={styles.sectionTitle}
+                >
+                  HEART RATE
+                </ThemedText>
+
+                <View style={styles.card}>
+                  <View
+                    style={
+                      styles.heartRateContainer
+                    }
+                  >
+                    <View
+                      style={styles.hrLabels}
+                    >
                       <ThemedText
                         color="textMuted"
                         style={styles.hrLabel}
                       >
-                        {selectedSleep.maxHr ?? '--'}
+                        {selectedSleep.maxHr ??
+                          '--'}
                       </ThemedText>
 
                       <ThemedText
@@ -371,7 +571,9 @@ export default function SleepTrackerScreen() {
                         style={styles.hrLabel}
                       >
                         {selectedSleep.meanHr
-                          ? Math.round(selectedSleep.meanHr)
+                          ? Math.round(
+                            selectedSleep.meanHr
+                          )
                           : '--'}
                       </ThemedText>
 
@@ -379,168 +581,307 @@ export default function SleepTrackerScreen() {
                         color="textMuted"
                         style={styles.hrLabel}
                       >
-                        {selectedSleep.minHr ?? '--'}
+                        {selectedSleep.minHr ??
+                          '--'}
                       </ThemedText>
                     </View>
 
-                    <View style={styles.hrChart}>
-                      <View style={styles.gridLine} />
-                      <View style={styles.gridLine} />
-                      <View style={styles.gridLine} />
+                    <View
+                      style={styles.hrChart}
+                    >
+                      <View
+                        style={styles.gridLine}
+                      />
 
-                      {/* Placeholder shape until detailed HR samples endpoint */}
-                      <View style={styles.hrLine}>
+                      <View
+                        style={styles.gridLine}
+                      />
+
+                      <View
+                        style={styles.gridLine}
+                      />
+
+                      <View
+                        style={styles.hrLine}
+                      >
                         <View
                           style={[
                             styles.hrPoint,
-                            { left: '4%', top: 45 },
+                            {
+                              left: '4%',
+                              top: 48,
+                            },
                           ]}
                         />
+
                         <View
                           style={[
                             styles.hrPoint,
-                            { left: '18%', top: 35 },
+                            {
+                              left: '18%',
+                              top: 36,
+                            },
                           ]}
                         />
+
                         <View
                           style={[
                             styles.hrPoint,
-                            { left: '32%', top: 48 },
+                            {
+                              left: '32%',
+                              top: 50,
+                            },
                           ]}
                         />
+
                         <View
                           style={[
                             styles.hrPoint,
-                            { left: '46%', top: 25 },
+                            {
+                              left: '46%',
+                              top: 27,
+                            },
                           ]}
                         />
+
                         <View
                           style={[
                             styles.hrPoint,
-                            { left: '60%', top: 42 },
+                            {
+                              left: '60%',
+                              top: 43,
+                            },
                           ]}
                         />
+
                         <View
                           style={[
                             styles.hrPoint,
-                            { left: '74%', top: 32 },
+                            {
+                              left: '74%',
+                              top: 34,
+                            },
                           ]}
                         />
+
                         <View
                           style={[
                             styles.hrPoint,
-                            { left: '88%', top: 38 },
+                            {
+                              left: '88%',
+                              top: 40,
+                            },
                           ]}
                         />
                       </View>
                     </View>
                   </View>
 
-                  <View style={styles.hrSummary}>
+                  <View
+                    style={styles.hrSummary}
+                  >
                     <Metric
                       label="Average"
-                      value={formatBpm(selectedSleep.meanHr)}
+                      value={formatBpm(
+                        selectedSleep.meanHr
+                      )}
                     />
 
                     <Metric
                       label="Lowest"
-                      value={formatBpm(selectedSleep.minHr)}
+                      value={formatBpm(
+                        selectedSleep.minHr
+                      )}
                     />
 
                     <Metric
                       label="Highest"
-                      value={formatBpm(selectedSleep.maxHr)}
+                      value={formatBpm(
+                        selectedSleep.maxHr
+                      )}
                     />
                   </View>
                 </View>
-              )}
+              </View>
+            )}
 
-              {/* Dreams */}
-              <View style={styles.section}>
-                <View style={styles.dreamHeader}>
-                  <ThemedText type="subtitle">
-                    Dreams
-                  </ThemedText>
+            {/* Dreams */}
+            <View style={styles.section}>
+              <View
+                style={styles.sectionHeader}
+              >
+                <ThemedText
+                  type="subtitle"
+                  style={
+                    styles.sectionTitleInline
+                  }
+                >
+                  Dreams
+                </ThemedText>
 
-                  <ThemedText color="textMuted">
-                    {selectedDreams.length}{' '}
-                    {selectedDreams.length === 1
-                      ? 'dream'
-                      : 'dreams'}
-                  </ThemedText>
-                </View>
+                <ThemedText
+                  color="textMuted"
+                  style={styles.sectionCount}
+                >
+                  {selectedDreams.length}{' '}
+                  {selectedDreams.length === 1
+                    ? 'dream'
+                    : 'dreams'}
+                </ThemedText>
+              </View>
 
-                {selectedDreams.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.dreamCards}
-                  >
-                    {selectedDreams.map((dream, index) => (
+              {selectedDreams.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={
+                    false
+                  }
+                  contentContainerStyle={
+                    styles.dreamCards
+                  }
+                >
+                  {selectedDreams.map(
+                    (dream, index) => (
                       <Pressable
                         key={dream.id}
-                        style={styles.dreamCard}
+                        style={
+                          styles.dreamCard
+                        }
                       >
-                        <ThemedText
-                          color="textMuted"
-                          style={styles.dreamNumber}
+                        <View
+                          style={
+                            styles.dreamCardHeader
+                          }
                         >
-                          #{index + 1}
-                        </ThemedText>
+                          <View
+                            style={
+                              styles.dreamNumber
+                            }
+                          >
+                            <ThemedText
+                              style={
+                                styles.dreamNumberText
+                              }
+                            >
+                              {index + 1}
+                            </ThemedText>
+                          </View>
+
+                          <ThemedText
+                            color="textMuted"
+                            style={
+                              styles.dreamType
+                            }
+                          >
+                            {capitalize(
+                              dream.dreamType
+                            )}
+                          </ThemedText>
+                        </View>
 
                         <ThemedText
                           style={styles.dreamMood}
                         >
-                          {capitalize(dream.mood)}
+                          {capitalize(
+                            dream.mood
+                          )}
                         </ThemedText>
 
-                        <ThemedText color="textMuted">
-                          · {capitalize(dream.dreamType)}
-                        </ThemedText>
+                        {dream.tags?.length >
+                          0 && (
+                            <ThemedText
+                              color="textMuted"
+                              style={
+                                styles.dreamTags
+                              }
+                            >
+                              {dream.tags
+                                .slice(0, 2)
+                                .map(
+                                  (tag) =>
+                                    `#${tag}`
+                                )
+                                .join(' ')}
+                            </ThemedText>
+                          )}
                       </Pressable>
-                    ))}
-                  </ScrollView>
-                ) : (
+                    )
+                  )}
+                </ScrollView>
+              ) : (
+                <View
+                  style={styles.emptyDreams}
+                >
+                  <Feather
+                    name="moon"
+                    size={20}
+                    color={Colors.lilac}
+                  />
+
                   <ThemedText color="textMuted">
-                    No dreams recorded for this sleep.
+                    No dreams recorded for
+                    this sleep.
                   </ThemedText>
-                )}
-              </View>
-              {/* Weekly stats */}
-              <View style={styles.insightsSection}>
-                <View style={styles.insightsHeader}>
+                </View>
+              )}
+            </View>
+
+            {/* Weekly stats */}
+            <View style={styles.section}>
+
+              <View style={styles.statsCard}>
+                <View
+                  style={styles.statsHeader}
+                >
                   <View>
-                    <ThemedText type="subtitle">
-                      WEEKLY STATS
+                    <ThemedText
+                      style={styles.statsTitle}
+                    >
+                      Sleep ↔ Dreams
                     </ThemedText>
 
                     <ThemedText
                       color="textMuted"
-                      style={styles.insightsSubtitle}
+                      style={
+                        styles.statsSubtitle
+                      }
                     >
-                      Sleep ↔ Dreams
+                      Your week at a
+                      glance
                     </ThemedText>
                   </View>
 
-                  <Pressable style={styles.chatButton}>
-                    <Feather
-                      name="message-circle"
-                      size={16}
-                      color="#fff"
+                  <Pressable
+                    onPress={() =>
+                      router.push('/conversational-analytics')
+                    }
+                    hitSlop={10}
+                  >
+                    <Animated.Image
+                      source={require('@/assets/images/wizard2.png')}
+                      resizeMode="contain"
+                      style={[
+                        styles.wizardIcon,
+                        {
+                          transform: [
+                            { translateX: hatJingleX },
+                            { translateY: hatJingleY },
+                          ],
+                        },
+                      ]}
                     />
-
-                    <ThemedText style={styles.chatText}>
-                      Chat with AI
-                    </ThemedText>
                   </Pressable>
                 </View>
 
                 {insights && (
-                  <>
+                  <View
+                    style={styles.statsRows}
+                  >
                     <InsightRow
                       left="Average sleep"
                       leftValue={formatDuration(
-                        insights.stats.averageSleepMinutes
+                        insights.stats
+                          .averageSleepMinutes
                       )}
                       right="Dream frequency"
                       rightValue={`${insights.stats.totalDreams} dreams`}
@@ -549,7 +890,8 @@ export default function SleepTrackerScreen() {
                     <InsightRow
                       left="Average REM"
                       leftValue={formatDuration(
-                        insights.stats.averageRemMinutes
+                        insights.stats
+                          .averageRemMinutes
                       )}
                       right="Vivid dreams"
                       rightValue={`${insights.stats.vividDreams}`}
@@ -557,9 +899,14 @@ export default function SleepTrackerScreen() {
 
                     <InsightRow
                       left="Mean HR"
-                      leftValue={`${insights.stats.averageMeanHr} bpm`}
+                      leftValue={`${Math.round(
+                        insights.stats
+                          .averageMeanHr
+                      )} bpm`}
                       right="Dream mood"
-                      rightValue={formatDreamMood(insights.stats)}
+                      rightValue={formatDreamMood(
+                        insights.stats
+                      )}
                     />
 
                     <InsightRow
@@ -568,13 +915,13 @@ export default function SleepTrackerScreen() {
                       right="Nightmares"
                       rightValue={`${insights.stats.nightmares}`}
                     />
-                  </>
+                  </View>
                 )}
               </View>
-            </>
-          )}
-        </ScrollView>
-      </SafeAreaView>
+            </View>
+          </ScrollView>
+        )}
+      </View>
     </ThemedView>
   );
 }
@@ -629,7 +976,9 @@ function StageRow({
   total: number;
 }) {
   const width =
-    total > 0 ? `${(minutes / total) * 100}%` : '0%';
+    total > 0
+      ? `${(minutes / total) * 100}%`
+      : '0%';
 
   return (
     <View style={styles.stageRow}>
@@ -655,7 +1004,7 @@ function StageRow({
         color="textMuted"
         style={styles.stageMinutes}
       >
-        {minutes}m
+        {Math.round(minutes)}m
       </ThemedText>
     </View>
   );
@@ -663,15 +1012,26 @@ function StageRow({
 
 function EmptySleepState() {
   return (
-    <View style={styles.emptySleep}>
+    <View style={styles.emptyCard}>
       <Feather
         name="moon"
-        size={22}
-        color="rgba(255,255,255,0.45)"
+        size={30}
+        color={Colors.lilac}
       />
 
-      <ThemedText color="textMuted">
-        No sleep recorded for this day.
+      <ThemedText
+        type="subtitle"
+        style={styles.emptyTitle}
+      >
+        No sleep recorded
+      </ThemedText>
+
+      <ThemedText
+        color="textMuted"
+        style={styles.emptyText}
+      >
+        There is no sleep data recorded for this
+        night.
       </ThemedText>
     </View>
   );
@@ -714,21 +1074,31 @@ function InsightRow({
   return (
     <View style={styles.insightRow}>
       <View style={styles.insightMetric}>
-        <ThemedText color="textMuted">
+        <ThemedText
+          color="textMuted"
+          style={styles.insightLabel}
+        >
           {left}
         </ThemedText>
 
-        <ThemedText style={styles.insightValue}>
+        <ThemedText
+          style={styles.insightValue}
+        >
           {leftValue}
         </ThemedText>
       </View>
 
       <View style={styles.insightMetric}>
-        <ThemedText color="textMuted">
+        <ThemedText
+          color="textMuted"
+          style={styles.insightLabel}
+        >
           {right}
         </ThemedText>
 
-        <ThemedText style={styles.insightValue}>
+        <ThemedText
+          style={styles.insightValue}
+        >
           {rightValue}
         </ThemedText>
       </View>
@@ -737,55 +1107,104 @@ function InsightRow({
 }
 
 function buildDays(start: Date): DayItem[] {
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = addDays(start, index);
+  return Array.from(
+    { length: 7 },
+    (_, index) => {
+      const date = addDays(start, index);
 
-    return {
-      label: date.toLocaleDateString('en-US', {
-        weekday: 'short',
-      }),
-      date: String(date.getDate()),
-      key: formatDate(date),
-    };
-  });
+      return {
+        label: date.toLocaleDateString(
+          'en-US',
+          {
+            weekday: 'short',
+          }
+        ),
+        date: String(date.getDate()),
+        key: formatDate(date),
+      };
+    }
+  );
 }
 
 function getSunday(date: Date): Date {
   const result = new Date(date);
   const day = result.getDay();
 
-  result.setDate(result.getDate() - day);
+  result.setDate(
+    result.getDate() - day
+  );
+
   result.setHours(0, 0, 0, 0);
 
   return result;
 }
 
-function addDays(date: Date, amount: number): Date {
+function addDays(
+  date: Date,
+  amount: number
+): Date {
   const result = new Date(date);
-  result.setDate(result.getDate() + amount);
+
+  result.setDate(
+    result.getDate() + amount
+  );
+
   return result;
 }
 
 function formatDate(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, '0');
+
+  const day = String(
+    date.getDate()
+  ).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
 }
 
-function formatWeekTitle(date: Date): string {
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
+function formatWeekRange(
+  start: Date
+): string {
+  const end = addDays(start, 6);
+
+  const startLabel =
+    start.toLocaleDateString(
+      'en-US',
+      {
+        month: 'short',
+        day: 'numeric',
+      }
+    );
+
+  const endLabel =
+    end.toLocaleDateString(
+      'en-US',
+      {
+        month: 'short',
+        day: 'numeric',
+      }
+    );
+
+  return `${startLabel} – ${endLabel}`;
 }
 
-function formatDuration(minutes: number): string {
-  const totalMinutes = Math.round(minutes);
+function formatDuration(
+  minutes: number
+): string {
+  const totalMinutes =
+    Math.round(minutes);
 
-  const hours = Math.floor(totalMinutes / 60);
-  const remainingMinutes = totalMinutes % 60;
+  const hours =
+    Math.floor(
+      totalMinutes / 60
+    );
+
+  const remainingMinutes =
+    totalMinutes % 60;
 
   if (hours === 0) {
     return `${remainingMinutes}m`;
@@ -798,36 +1217,49 @@ function formatDuration(minutes: number): string {
   return `${hours}h ${remainingMinutes}m`;
 }
 
-function formatBpm(value: number | null): string {
+function formatBpm(
+  value: number | null
+): string {
   return value == null
     ? '--'
     : `${Math.round(value)} bpm`;
 }
 
-function capitalize(value: string): string {
+function capitalize(
+  value: string
+): string {
   if (!value) {
     return value;
   }
 
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  return (
+    value.charAt(0).toUpperCase() +
+    value.slice(1)
+  );
 }
 
 function formatLocalTime(
   utcString: string,
   offsetSeconds: number
 ): string {
-  const utcDate = new Date(utcString);
+  const utcDate =
+    new Date(utcString);
 
   const localMillis =
-    utcDate.getTime() + offsetSeconds * 1000;
+    utcDate.getTime() +
+    offsetSeconds * 1000;
 
-  const localDate = new Date(localMillis);
+  const localDate =
+    new Date(localMillis);
 
-  return localDate.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'UTC',
-  });
+  return localDate.toLocaleTimeString(
+    'en-US',
+    {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'UTC',
+    }
+  );
 }
 
 function formatDreamMood(
@@ -836,76 +1268,104 @@ function formatDreamMood(
   const parts: string[] = [];
 
   if (stats.greatDreams > 0) {
-    parts.push(`${stats.greatDreams} great`);
+    parts.push(
+      `${stats.greatDreams} great`
+    );
   }
 
   if (stats.goodDreams > 0) {
-    parts.push(`${stats.goodDreams} good`);
+    parts.push(
+      `${stats.goodDreams} good`
+    );
   }
 
   if (stats.neutralDreams > 0) {
-    parts.push(`${stats.neutralDreams} neutral`);
+    parts.push(
+      `${stats.neutralDreams} neutral`
+    );
   }
 
   if (stats.badDreams > 0) {
-    parts.push(`${stats.badDreams} bad`);
+    parts.push(
+      `${stats.badDreams} bad`
+    );
   }
 
-  return parts.join(' · ') || '--';
+  if (stats.nightmares > 0) {
+    parts.push(
+      `${stats.nightmares} nightmare`
+    );
+  }
+
+  return (
+    parts.join(' · ') || '--'
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  insightMetric: {
-    flex: 1,
-  },
-
-  insightValue: {
-    marginTop: 4,
-    fontSize: 14,
-  },
-  safeArea: {
-    flex: 1,
-  },
-
-  content: {
+    paddingTop: 70,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 48,
   },
 
-  weekHeader: {
+  contentLayer: {
+    flex: 1,
+    zIndex: 1,
+  },
+
+  weekSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 24,
   },
 
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  weekArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  weekArrowDisabled: {
+    opacity: 0.4,
+  },
+
+  weekInfo: {
+    alignItems: 'center',
+    gap: 3,
+  },
+
+  weekCaption: {
+    fontSize: 10,
+    letterSpacing: 1.5,
+    fontWeight: '600',
+  },
+
+  weekLabel: {
+    fontSize: 17,
+    fontWeight: '500',
   },
 
   daysRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 34,
+    marginBottom: 28,
   },
 
   dayItem: {
     alignItems: 'center',
-    width: 42,
+    width: 38,
   },
 
   dayLabel: {
-    fontSize: 12,
-    marginBottom: 8,
+    fontSize: 11,
+    marginBottom: 7,
   },
 
   dayCircle: {
@@ -917,7 +1377,9 @@ const styles = StyleSheet.create({
   },
 
   dayCircleSelected: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
 
   dayNumber: {
@@ -928,75 +1390,105 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.lilac,
     marginTop: 6,
   },
 
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 10,
-  },
-
-  loadingText: {
-    fontSize: 12,
-  },
-
-  errorContainer: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    gap: 14,
-  },
-
-  retryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+  scrollContent: {
+    paddingBottom: 40,
+    gap: 4,
   },
 
   section: {
-    marginBottom: 34,
+    marginBottom: 20,
+    gap: 10,
   },
 
   sectionTitle: {
-    textAlign: 'center',
-    letterSpacing: 1.5,
-    marginBottom: 20,
+    marginLeft: 4,
+    fontSize: 15,
+    letterSpacing: 0.8,
+  },
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  sectionTitleInline: {
+    marginLeft: 4,
+    fontSize: 17,
+  },
+
+  sectionCount: {
+    fontSize: 12,
+    marginRight: 4,
+  },
+
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 18,
+    gap: 18,
   },
 
   sleepTimes: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  timeValue: {
+    fontSize: 17,
+    fontWeight: '500',
+  },
+
+  timeLabel: {
+    fontSize: 9,
+    letterSpacing: 1,
+    marginTop: 3,
+  },
+
+  wakeTime: {
+    alignItems: 'flex-end',
+  },
+
+  durationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
 
   duration: {
     fontSize: 12,
+    fontWeight: '600',
   },
 
-  sleepLine: {
-    height: 2,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    marginTop: 10,
-    marginBottom: 22,
+  sleepTimeline: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    overflow: 'hidden',
   },
 
-  sleepLineFill: {
+  sleepTimelineFill: {
     width: '100%',
-    height: 2,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-  },
-
-  emptySleep: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 28,
-    gap: 10,
+    height: '100%',
+    backgroundColor: Colors.lilac,
+    opacity: 0.65,
   },
 
   stageChart: {
-    gap: 10,
+    gap: 11,
   },
 
   stageRow: {
@@ -1005,27 +1497,28 @@ const styles = StyleSheet.create({
   },
 
   stageLabel: {
-    width: 50,
-    fontSize: 11,
+    width: 48,
+    fontSize: 10,
+    letterSpacing: 0.5,
   },
 
   stageTrack: {
     flex: 1,
-    height: 18,
-    position: 'relative',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    height: 14,
+    backgroundColor: Colors.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
 
   stageBlock: {
-    height: 18,
+    height: '100%',
+    backgroundColor: Colors.lilac,
+    opacity: 0.7,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.55)',
   },
 
   stageMinutes: {
-    width: 38,
+    width: 40,
     marginLeft: 8,
     fontSize: 10,
     textAlign: 'right',
@@ -1033,29 +1526,29 @@ const styles = StyleSheet.create({
 
   heartRateContainer: {
     flexDirection: 'row',
-    height: 130,
+    height: 125,
   },
 
   hrLabels: {
-    width: 35,
+    width: 32,
     justifyContent: 'space-between',
     paddingVertical: 4,
   },
 
   hrLabel: {
-    fontSize: 10,
+    fontSize: 9,
   },
 
   hrChart: {
     flex: 1,
     position: 'relative',
-    justifyContent: 'space-between',
   },
 
   gridLine: {
     height: 1,
     width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: Colors.border,
+    marginBottom: 40,
   },
 
   hrLine: {
@@ -1071,17 +1564,20 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.lilac,
   },
 
   hrSummary: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 16,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
 
   metric: {
     alignItems: 'center',
+    flex: 1,
   },
 
   metricLabel: {
@@ -1091,76 +1587,174 @@ const styles = StyleSheet.create({
 
   metricValue: {
     fontSize: 13,
-  },
-
-  dreamHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    fontWeight: '500',
   },
 
   dreamCards: {
     gap: 12,
+    paddingRight: 20,
   },
 
   dreamCard: {
-    minWidth: 150,
+    width: 165,
+    minHeight: 110,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: 16,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    gap: 8,
+  },
+
+  dreamCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'space-between',
   },
 
   dreamNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.lilac,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  dreamNumberText: {
+    color: Colors.background,
     fontSize: 11,
+    fontWeight: '600',
+  },
+
+  dreamType: {
+    fontSize: 10,
   },
 
   dreamMood: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
   },
 
-  insightsSection: {
-    marginTop: 4,
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.055)',
+  dreamTags: {
+    fontSize: 11,
+    lineHeight: 17,
   },
 
-  insightsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyDreams: {
+    minHeight: 90,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     alignItems: 'center',
-    marginBottom: 18,
+    justifyContent: 'center',
+    gap: 8,
   },
 
-  insightsSubtitle: {
+  statsCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 18,
+  },
+
+  statsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+
+  statsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  statsSubtitle: {
     fontSize: 12,
     marginTop: 3,
   },
 
-  chatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-
-  chatText: {
-    fontSize: 11,
+  statsRows: {
+    gap: 0,
   },
 
   insightRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 11,
+    gap: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopColor: Colors.border,
+  },
+
+  insightMetric: {
+    flex: 1,
+  },
+
+  insightLabel: {
+    fontSize: 11,
+  },
+
+  insightValue: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  emptyCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  emptyTitle: {
+    textAlign: 'center',
+  },
+
+  emptyText: {
+    textAlign: 'center',
+    lineHeight: 21,
+    fontSize: 13,
+  },
+
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 30,
+    gap: 12,
+  },
+
+  loadingText: {
+    fontSize: 12,
+  },
+
+  retryButton: {
+    marginTop: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+
+  retryText: {
+    color: Colors.lilac,
+    fontWeight: '600',
+  },
+
+
+  wizardIcon: {
+    width: 50,
+    height: 50,
   },
 });
