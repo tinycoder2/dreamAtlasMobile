@@ -17,6 +17,7 @@ async function request<T>(
   }
 
   const idToken = await user.getIdToken();
+  console.log(idToken);
 
   const response = await fetch(
     `${API_BASE_URL}${path}`,
