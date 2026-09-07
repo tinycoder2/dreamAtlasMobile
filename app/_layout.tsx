@@ -28,7 +28,7 @@ Notifications.setNotificationHandler({
 });
 
 export const unstable_settings = {
-  anchor: 'index',
+  anchor: '(tabs)',
 };
 
 const dreamTheme: Theme = {
