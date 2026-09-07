@@ -17,7 +17,6 @@ async function request<T>(
   }
 
   const idToken = await user.getIdToken();
-  console.log(idToken);
 
   const response = await fetch(
     `${API_BASE_URL}${path}`,
@@ -44,7 +43,9 @@ async function request<T>(
 
   return response.json() as Promise<T>;
 }
-
+export type AnalyticsChatResponse = {
+  answer: string;
+};
 export const api = {
   get<T>(path: string) {
     return request<T>(path);
@@ -80,5 +81,13 @@ export const api = {
       method: 'POST',
       body: formData,
     });
+  },
+};
+export const analyticsApi = {
+  chat(message: string) {
+    return api.post<AnalyticsChatResponse>(
+      '/api/analytics/chat',
+      { message },
+    );
   },
 };

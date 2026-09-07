@@ -1,40 +1,209 @@
 import { Feather } from '@expo/vector-icons';
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import {
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    View,
+} from 'react-native';
 
 import { Starfield } from '@/components/starfield';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
+import { Colors, Radius } from '@/constants/theme';
+import { api } from '@/services/api';
+
+type AnalyticsResponse = {
+    answer: string;
+};
+
+const SUGGESTED_QUESTIONS = [
+    'How does my sleep relate to my dreams?',
+    'Which nights had the most REM sleep?',
+    'What moods do I dream in most often?',
+    'Do I dream more when I get more REM sleep?',
+];
 
 export default function ConversationalAnalyticsScreen() {
+    const [question, setQuestion] = useState('');
+    const [answer, setAnswer] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const askQuestion = async (text?: string) => {
+        const message = (text ?? question).trim();
+
+        if (!message || loading) {
+            return;
+        }
+
+        setQuestion(message);
+        setLoading(true);
+        setError(null);
+        setAnswer(null);
+
+        try {
+            const response = await api.post<AnalyticsResponse>(
+                '/api/analytics/chat',
+                {
+                    message,
+                },
+            );
+
+            setAnswer(response.answer);
+        } catch (err) {
+            console.error('Analytics error:', err);
+
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Something went wrong while reading your dreams.',
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <ThemedView style={styles.container}>
             <Starfield />
 
             <View style={styles.content}>
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <View style={styles.header}>
+                        <View style={styles.headerIcon}>
+                            <Feather
+                                name="message-circle"
+                                size={24}
+                                color={Colors.lilac}
+                            />
+                        </View>
 
-                <View style={styles.centerContent}>
-                    <View style={styles.iconCircle}>
-                        <Feather
-                            name="message-circle"
-                            size={34}
-                            color={Colors.lilac}
-                        />
+                        <View style={styles.headerText}>
+                            <ThemedText style={styles.title}>
+                                Ask the dream witch
+                            </ThemedText>
+
+                            <ThemedText style={styles.subtitle}>
+                                Your sleep & dream oracle
+                            </ThemedText>
+                        </View>
                     </View>
 
-                    <ThemedText style={styles.title}>
-                        Ask the dream witch!
-                    </ThemedText>
-
-                    <ThemedText style={styles.comingSoon}>
-                        Coming soon
-                    </ThemedText>
-
                     <ThemedText style={styles.description}>
-                        Ask questions about your sleep data and explore
-                        patterns using spells and witchcraft! (BigQuery-powered analytics).
+                        Ask me anything about your sleep, dreams, and the
+                        patterns hiding between them.
                     </ThemedText>
-                </View>
+
+                    <ThemedText style={styles.sectionTitle}>
+                        Try asking
+                    </ThemedText>
+
+                    <View style={styles.suggestions}>
+                        {SUGGESTED_QUESTIONS.map((item) => (
+                            <Pressable
+                                key={item}
+                                style={styles.suggestion}
+                                onPress={() => askQuestion(item)}
+                                disabled={loading}
+                            >
+                                <ThemedText style={styles.suggestionText}>
+                                    {item}
+                                </ThemedText>
+
+                                <Feather
+                                    name="arrow-up-right"
+                                    size={15}
+                                    color={Colors.lilac}
+                                />
+                            </Pressable>
+                        ))}
+                    </View>
+
+                    {answer && (
+                        <View style={styles.answerCard}>
+                            <View style={styles.answerHeader}>
+                                <View style={styles.answerIcon}>
+                                    <Feather
+                                        name="moon"
+                                        size={18}
+                                        color={Colors.lilac}
+                                    />
+                                </View>
+
+                                <ThemedText style={styles.answerTitle}>
+                                    The witch sees...
+                                </ThemedText>
+                            </View>
+
+                            <ThemedText style={styles.answerText}>
+                                {answer}
+                            </ThemedText>
+                        </View>
+                    )}
+
+                    {error && (
+                        <View style={styles.errorCard}>
+                            <Feather
+                                name="alert-circle"
+                                size={18}
+                                color={Colors.lilac}
+                            />
+
+                            <ThemedText style={styles.errorText}>
+                                {error}
+                            </ThemedText>
+                        </View>
+                    )}
+
+                    <View style={styles.inputSection}>
+                        <TextInput
+                            value={question}
+                            onChangeText={setQuestion}
+                            placeholder="Ask about your sleep or dreams..."
+                            placeholderTextColor={Colors.textSecondary}
+                            multiline
+                            editable={!loading}
+                            style={styles.input}
+                            onSubmitEditing={() => askQuestion()}
+                        />
+
+                        <Pressable
+                            style={[
+                                styles.askButton,
+                                (!question.trim() || loading) &&
+                                    styles.askButtonDisabled,
+                            ]}
+                            onPress={() => askQuestion()}
+                            disabled={!question.trim() || loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator
+                                    size="small"
+                                    color={Colors.background}
+                                />
+                            ) : (
+                                <>
+                                    <ThemedText style={styles.askButtonText}>
+                                        Ask
+                                    </ThemedText>
+
+                                    <Feather
+                                        name="arrow-up"
+                                        size={17}
+                                        color={Colors.background}
+                                    />
+                                </>
+                            )}
+                        </Pressable>
+                    </View>
+                </ScrollView>
             </View>
         </ThemedView>
     );
@@ -52,70 +221,172 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
 
+    scrollContent: {
+        paddingBottom: 50,
+    },
+
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 28,
+        marginBottom: 16,
     },
 
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+    headerIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         backgroundColor: Colors.surface,
         borderWidth: 1,
         borderColor: Colors.border,
         alignItems: 'center',
         justifyContent: 'center',
+        marginRight: 14,
     },
 
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-
-    headerSpacer: {
-        width: 40,
-    },
-
-    centerContent: {
+    headerText: {
         flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingBottom: 100,
-    },
-
-    iconCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: Colors.surface,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 24,
     },
 
     title: {
         fontSize: 24,
         fontWeight: '600',
-        textAlign: 'center',
-        marginBottom: 8,
     },
 
-    comingSoon: {
-        fontSize: 15,
-        color: Colors.lilac,
-        fontWeight: '600',
-        marginBottom: 16,
+    subtitle: {
+        fontSize: 14,
+        opacity: 0.55,
+        marginTop: 2,
     },
 
     description: {
-        maxWidth: 340,
-        textAlign: 'center',
+        fontSize: 15,
         lineHeight: 22,
         opacity: 0.7,
+        marginBottom: 28,
+    },
+
+    sectionTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        marginBottom: 12,
+    },
+
+    suggestions: {
+        gap: 10,
+    },
+
+    suggestion: {
+        minHeight: 52,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: Radius.md,
+        backgroundColor: Colors.surface,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+
+    suggestionText: {
+        flex: 1,
+        fontSize: 14,
+        lineHeight: 20,
+        marginRight: 10,
+    },
+
+    inputSection: {
+        marginTop: 28,
+    },
+
+    input: {
+        minHeight: 90,
+        maxHeight: 150,
+        borderRadius: Radius.md,
+        backgroundColor: Colors.surface,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        paddingHorizontal: 16,
+        paddingTop: 14,
+        paddingBottom: 14,
+        color: Colors.text,
+        fontSize: 15,
+        textAlignVertical: 'top',
+    },
+
+    askButton: {
+        height: 48,
+        borderRadius: Radius.md,
+        marginTop: 10,
+        backgroundColor: Colors.lilac,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 8,
+    },
+
+    askButtonDisabled: {
+        opacity: 0.45,
+    },
+
+    askButtonText: {
+        color: Colors.background,
+        fontSize: 15,
+        fontWeight: '600',
+    },
+
+    answerCard: {
+    marginTop: 28,
+    padding: 18,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceElevated,
+        borderWidth: 1,
+        borderColor: Colors.border,
+    },
+
+    answerHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 14,
+    },
+
+    answerIcon: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: Colors.background,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 10,
+    },
+
+    answerTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+
+    answerText: {
+        fontSize: 15,
+        lineHeight: 23,
+        opacity: 0.85,
+    },
+
+    errorCard: {
+        marginTop: 20,
+        padding: 16,
+        borderRadius: 14,
+        backgroundColor: Colors.surface,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 10,
+    },
+
+    errorText: {
+        flex: 1,
+        fontSize: 14,
+        lineHeight: 20,
+        opacity: 0.75,
     },
 });
