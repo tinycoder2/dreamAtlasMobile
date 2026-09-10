@@ -10,7 +10,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Radius } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-
+import { auth } from '@/lib/firebase';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
@@ -52,28 +53,19 @@ export default function LoginScreen() {
       });
   }, [response, signInWithGoogle]);
 
-  async function handleGoogleSignIn() {
+async function handleGoogleSignIn() {
+  try {
     if (Platform.OS === 'web') {
-      // On web: redirect to Google in the SAME tab.
-      // After the user picks an account Google redirects back to our origin
-      // with #id_token=… in the hash. AuthProvider picks that up on reload.
-      const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-      const redirectUri = window.location.origin;
+      const provider = new GoogleAuthProvider();
 
-      const nonce = [...crypto.getRandomValues(new Uint8Array(32))]
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
-
-      const params = new URLSearchParams({
-        client_id: clientId!,
-        redirect_uri: redirectUri,
-        response_type: 'id_token',
-        scope: 'openid email profile',
-        nonce,
+      provider.setCustomParameters({
         prompt: 'select_account',
       });
 
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      const result = await signInWithPopup(auth, provider);
+
+      console.log('🔥 WEB GOOGLE SUCCESS:', result.user.email);
+
       return;
     }
 
@@ -84,7 +76,14 @@ export default function LoginScreen() {
     }
 
     await promptAsync();
+  } catch (error: any) {
+    console.error('🔥 GOOGLE SIGN-IN ERROR:', error);
+    console.error('🔥 ERROR CODE:', error?.code);
+    console.error('🔥 ERROR MESSAGE:', error?.message);
+    console.error('🔥 ERROR CUSTOM DATA:', error?.customData);
+    console.error('🔥 ERROR NAME:', error?.name);
   }
+}
 
   return (
     <ThemedView style={styles.container}>

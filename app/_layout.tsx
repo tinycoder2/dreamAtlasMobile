@@ -2,7 +2,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { DefaultTheme, ThemeProvider, type Theme } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
-
+import { Platform } from 'react-native';
 WebBrowser.maybeCompleteAuthSession();
 // import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
@@ -89,7 +89,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
             }>('/api/health/google/connect-url');
 
           const redirectUri =
-            Linking.createURL('google-health-callback');
+            Platform.OS === 'web'
+              ? `${window.location.origin}/google-health-callback`
+              : Linking.createURL('google-health-callback');
 
           console.log('OAuth redirect URI:', redirectUri);
 
